@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    k8s-app: clusternet
+    name: feedinventory-controller
+  name: feedinventory-controller
+  namespace: clusternet-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      k8s-app: clusternet
+      name: feedinventory-controller
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        k8s-app: clusternet
+        name: feedinventory-controller
+    spec:
+      containers:
+      - name: feedinventory-controller 
+        ports:
+        - containerPort: 9091
+          name: http
+          protocol: TCP
+        image: csighub.tencentyun.com/tkex/feedinventory-controller:v0.1 
+        imagePullPolicy: Always
+        command:
+        - /usr/bin/feedinventory-controller
+        resources:
+          limits:
+            cpu: "2"
+            memory: 4Gi
+          requests:
+            cpu: "1"
+            memory: 2Gi
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      serviceAccount: clusternet-agent
+      serviceAccountName: clusternet-agent
+      tolerations:
+      - operator: Exists
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    name: feedinventory-controller
+    k8s-app: clusternet
+  name: feedinventory-controller 
+  namespace: clusternet-system
+spec:
+  ports:
+  - name: service
+    port: 80
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    name: feedinventory-controller
+    k8s-app: clusterne
+  sessionAffinity: None
+  type: ClusterIP
