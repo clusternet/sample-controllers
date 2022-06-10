@@ -114,18 +114,20 @@ func (p *PredictorServer) MaxAcceptableReplicas(w http.ResponseWriter, r *http.R
 	for _, v := range matchNode {
 		maxReplicas += v
 	}
-	clusterMax := p.checkClsterResource(require, nodeList, matchNode)
+	clusterMax := p.checkClusterResource(require, nodeList, matchNode)
 	if clusterMax < maxReplicas {
 		maxReplicas = clusterMax
 	}
-	w.Write([]byte(strconv.FormatInt(maxReplicas, 10)))
+	if _, err = w.Write([]byte(strconv.FormatInt(maxReplicas, 10))); err != nil {
+		klog.Error(err)
+	}
 }
 
 func (p *PredictorServer) UnschedulableReplicas(w http.ResponseWriter, r *http.Request) {
 	// TODO: add real logic
 }
 
-func (p *PredictorServer) checkClsterResource(require appsapi.ReplicaRequirements, nodes []*corev1.Node, matchNode map[string]int64) int64 {
+func (p *PredictorServer) checkClusterResource(_ appsapi.ReplicaRequirements, nodes []*corev1.Node, matchNode map[string]int64) int64 {
 	// If your cluster node set annotation "tke.cloud.tencent.com/available-ip-count" value represent available ip count
 	var ipCount int64
 	for _, n := range nodes {

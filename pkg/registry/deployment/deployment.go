@@ -41,9 +41,8 @@ func (pl *Plugin) Parser(rawData []byte) (*int32, appsapi.ReplicaRequirements, s
 	if err := json.Unmarshal(rawData, &deploy); err != nil {
 		return nil, appsapi.ReplicaRequirements{}, "", err
 	}
-	desiredReplicas := int32(*deploy.Spec.Replicas)
 
-	return &desiredReplicas, utils.GetReplicaRequirements(deploy.Spec.Template.Spec), "/spec/replicas", nil
+	return deploy.Spec.Replicas, utils.GetReplicaRequirements(deploy.Spec.Template.Spec), "/spec/replicas", nil
 }
 
 // Name return plugin name
@@ -51,7 +50,7 @@ func (pl *Plugin) Name() string {
 	return pl.name
 }
 
-// King return resource kind name for plugin
+// Kind return resource kind name for plugin
 func (pl *Plugin) Kind() string {
 	return deployment
 }
