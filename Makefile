@@ -25,6 +25,11 @@ tidy:
 vet:
 	@go vet cmd
 
+# Verify all changes
+.PHONY: verify
+verify:
+	hack/verify-all.sh
+
 .PHONY: fmt
 fmt:
 	@find . -type f -name '*.go'| grep -v "/vendor/" | xargs gofmt -w -s
@@ -32,6 +37,25 @@ fmt:
 .PHONY: test
 test: vet
 	go test -race -coverprofile coverage.out -covermode=atomic ./...
+
+# Run golang lint against code
+.PHONY: lint
+lint: golangci-lint
+	@$(GOLANG_LINT) run \
+      --timeout 30m \
+      --disable-all \
+      -E deadcode \
+      -E unused \
+      -E varcheck \
+      -E ineffassign \
+      -E goimports \
+      -E gofmt \
+      -E misspell \
+      -E unparam \
+      -E unconvert \
+      -E govet \
+      -E errcheck \
+      -E structcheck
 
 # Build Binary
 # Example:
@@ -47,3 +71,21 @@ $(CMD_TARGET):
 images:
 	@echo "will build docker images"
 	@hack/make-rules/images.sh
+
+# find or download golangci-lint
+# download golangci-lint if necessary
+golangci-lint:
+ifeq (, $(shell which golangci-lint))
+	@{ \
+	set -e ;\
+	export GO111MODULE=on; \
+	GOLANG_LINT_TMP_DIR=$$(mktemp -d) ;\
+	cd $$GOLANG_LINT_TMP_DIR ;\
+	go mod init tmp ;\
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.44.2 ;\
+	rm -rf $$GOLANG_LINT_TMP_DIR ;\
+	}
+GOLANG_LINT=$(shell go env GOPATH)/bin/golangci-lint
+else
+GOLANG_LINT=$(shell which golangci-lint)
+endif
