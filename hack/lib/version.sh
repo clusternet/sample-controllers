@@ -30,59 +30,60 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-sample-controller::get_version_vars(){
-    BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
-    GIT_COMMIT=$(git log --format="%H" -n 1)
-    if git_status=$(git status --porcelain 2>/dev/null) && [[ -z ${git_status} ]]; then 
-        GIT_TREE_STATE="clean"
-    else 
-        GIT_TREE_STATE="dirty"
-    fi
+clusternet::version::get_version_vars() {
+  BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+  GIT_COMMIT=$(git log --format="%H" -n 1)
+  if git_status=$(git status --porcelain 2>/dev/null) && [[ -z ${git_status} ]]; then
+    GIT_TREE_STATE="clean"
+  else
+    GIT_TREE_STATE="dirty"
+  fi
 
-    GIT_VERSION=$(git describe --tags --always)
-    if [[ "${GIT_TREE_STATE}" == "dirty" ]]; then
-        GIT_VERSION+="-dirty"
+  GIT_VERSION=$(git describe --tags --always)
+  if [[ "${GIT_TREE_STATE}" == "dirty" ]]; then
+    # git describe --dirty only considers changes to existing files, but
+    # that is problematic since new untracked .go files affect the build,
+    # so use our idea of "dirty" from git status instead.
+    GIT_VERSION+="-dirty"
+  fi
+  if [[ "${GIT_VERSION}" =~ ^v([0-9]+)\.([0-9]+)(\.[0-9]+)?([-].*)?([+].*)?$ ]]; then
+    GIT_MAJOR=${BASH_REMATCH[1]}
+    GIT_MINOR=${BASH_REMATCH[2]}
+    if [[ -n "${BASH_REMATCH[4]}" ]]; then
+      GIT_MINOR+="+"
     fi
-
-    if [[ "${GIT_VERSION}" =~ ^v([0-9]+)\.([0-9]+)(\.[0-9]+)?([-].*)?([+].*)?$ ]]; then
-        GIT_MAJOR=${BASH_REMATCH[1]}
-        GIT_MINOR=${BASH_REMATCH[2]}
-        if [[ -n "${BASH_REMATCH[4]}" ]]; then 
-            GIT_MINOR+="+"
-        fi
-    fi 
+  fi
 }
 
-sample-controller::ldflags(){
-    sample-controller::get_version_vars
-    
-    local -a ldflags
-    
-    function add_ldflag() {
-        local key=${1}
-        local val=${2}
+clusternet::version::ldflags() {
+  clusternet::version::get_version_vars
 
-        ldflags+=(
-            "-X 'k8s.io/client-go/pkg/version.${key}=${val}'"
-            "-X 'k8s.io/component-base/version.${key}=${val}'"
-        )
-    }
+  local -a ldflags
+  function add_ldflag() {
+    local key=${1}
+    local val=${2}
+    # If you update these, also update the list component-base/version/def.bzl.
+    ldflags+=(
+      "-X 'k8s.io/client-go/pkg/version.${key}=${val}'"
+      "-X 'k8s.io/component-base/version.${key}=${val}'"
+    )
+  }
 
-    add_ldflag "buildData" "$(date ${SOURCE_DATE_EPOCH:+"--date=@${SOURCE_DATE_EPOCH}"} -u +'%Y-%m-%dT%H:%M:%SZ')"
-    if [[ -n ${GIT_COMMIT-} ]]; then
-        add_ldflag "gitCommit" "${GIT_COMMIT}"
-        add_ldflag "gitTreeState" "${GIT_TREE_STATE}"
-    fi
+  add_ldflag "buildDate" "$(date ${SOURCE_DATE_EPOCH:+"--date=@${SOURCE_DATE_EPOCH}"} -u +'%Y-%m-%dT%H:%M:%SZ')"
+  if [[ -n ${GIT_COMMIT-} ]]; then
+    add_ldflag "gitCommit" "${GIT_COMMIT}"
+    add_ldflag "gitTreeState" "${GIT_TREE_STATE}"
+  fi
 
-    if [[ -n ${GIT_VERSION-} ]]; then
-        add_ldflag "gitVersion" "${GIT_VERSION}"
-    fi
+  if [[ -n ${GIT_VERSION-} ]]; then
+    add_ldflag "gitVersion" "${GIT_VERSION}"
+  fi
 
-    if [[ -n ${GIT_MAJOR-}  && -n ${GIT_MINJOR-} ]]; then
-        add_ldflag "gitMajor" "${GIT_MAJOR}"
-        add_ldflag "gitMinor" "${GIT_MINOR}"
-    fi
-    
-    echo "${ldflags[*]-}"
+  if [[ -n ${GIT_MAJOR-} && -n ${GIT_MINOR-} ]]; then
+    add_ldflag "gitMajor" "${GIT_MAJOR}"
+    add_ldflag "gitMinor" "${GIT_MINOR}"
+  fi
+
+  # The -ldflags parameter takes a single string, so join the output.
+  echo "${ldflags[*]-}"
 }
-

@@ -57,19 +57,30 @@ lint: golangci-lint
       -E errcheck \
       -E structcheck
 
-# Build Binary
+# Build Binaries
+#
+# use WHAT to specify desired targets
+# use PLATFORMS to specify desired platforms
 # Example:
-#   make sample-controller
-EXCLUDE_TARGET=BUILD OWNERS
-CMD_TARGET = $(filter-out %$(EXCLUDE_TARGET),$(notdir $(abspath $(wildcard cmd/*/))))
-.PHONY: $(CMD_TARGET)
-$(CMD_TARGET):
-	@hack/make-rules/build.sh $@
+#   make binaries
+#   WHAT=external-feedinventory make binaries
+#   WHAT=external-feedinventory,external-predictor PLATFORMS=linux/amd64,linux/arm64 make binaries
+#   PLATFORMS=linux/amd64,linux/arm64,linux/ppc64le,linux/s390x,linux/386,linux/arm make binaries
+.PHONY: binaries
+binaries:
+	@hack/make-rules/build.sh
 
-
+# Build Images
+#
+# use WHAT to specify desired targets
+# use PLATFORMS to specify desired platforms
+# Example:
+#   make images
+#   WHAT=external-feedinventory make images
+#   WHAT=external-feedinventory,external-predictor PLATFORMS=linux/amd64,linux/arm64 make images
+#   PLATFORMS=linux/amd64,linux/arm64,linux/ppc64le,linux/s390x,linux/386,linux/arm make images
 .PHONY: images
 images:
-	@echo "will build docker images"
 	@hack/make-rules/images.sh
 
 # find or download golangci-lint

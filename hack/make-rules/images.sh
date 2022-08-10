@@ -18,13 +18,13 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-APP_ROOT=$(dirname "${BASH_SOURCE[0]}")/../..
-source "${APP_ROOT}/hack/lib/build.sh"
+CLUSTERNET_ROOT=$(dirname "${BASH_SOURCE[0]}")/../..
+source "${CLUSTERNET_ROOT}/hack/lib/build.sh"
 
 IFS="," read -ra platforms <<<"${PLATFORMS}"
-for img in $(ls -l "${APP_ROOT}/cmd" | grep ^d | awk '{print $9}') ; do 
-    for platform in "${platforms[@]}"; do
-        sample-controller::docker-image "${platform}" "${img}"
-    done
-done 
-  
+IFS="," read -ra targets <<<"${WHAT}"
+for platform in "${platforms[@]}"; do
+  for target in "${targets[@]}"; do
+    clusternet::docker::image "${platform}" "${target}"
+  done
+done

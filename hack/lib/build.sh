@@ -18,40 +18,44 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-APP_ROOT=$(dirname "${BASH_SOURCE[0]}")/../..
-PLATFORMS=${PLATFORMS:-linux/amd64}
-GO_ENABLED=${CGO_ENABLED:-0}
+readonly CLUSTERNET_ROOT=$(dirname "${BASH_SOURCE[0]}")/../..
 
-source "${APP_ROOT}/hack/lib/version.sh"
+WHAT=${WHAT:-$(cd "${CLUSTERNET_ROOT}"/cmd; ls -d * | paste -s -d, -)}
+PLATFORMS=${PLATFORMS:-linux/amd64}
+CGO_ENABLED=${CGO_ENABLED:-0}
+
+source "${CLUSTERNET_ROOT}/hack/lib/version.sh"
 
 function abspath() {
-    (
-        if [[ -d "${1}" ]]; then
-            cd "${1}"
-            pwd -P
-        else
-            cd "$(dirname "${1}")"
-            local f
-            f=$(basename "${1}")
-            if [[ -L "${f}" ]]; then
-                readlink "${f}"
-            else
-                echo "$(pwd -P)/${f}"
-            fi
-        fi
-    )
+  # run in a subshell for simpler 'cd'
+  (
+    if [[ -d "${1}" ]]; then # This also catch symlinks to dirs.
+      cd "${1}"
+      pwd -P
+    else
+      cd "$(dirname "${1}")"
+      local f
+      f=$(basename "${1}")
+      if [[ -L "${f}" ]]; then
+        readlink "${f}"
+      else
+        echo "$(pwd -P)/${f}"
+      fi
+    fi
+  )
 }
 
-sample-controller::setup_platform() {
-    local platform=$1
-    local goos
-    local goarch
+clusternet::golang::setup_platform() {
+  local platform=$1
 
-    case "${platform}" in
+  local goos
+  local goarch
+
+  case "${platform}" in
     "darwin/amd64")
       goos=darwin
       goarch=amd64
-    ;;
+      ;;
     "darwin/arm64")
       goos=darwin
       goarch=arm64
@@ -85,34 +89,36 @@ sample-controller::setup_platform() {
       exit 1
       ;;
   esac
-  
+
   export GOOS=${goos}
   export GOARCH=${goarch}
 }
 
-sample-controller::build_binary() {
-   sample-controller::verify_golang
-   (
-       echo "building with $(go version)"
-       
-       local goldflag
-       goldflags="$(sample-controller::ldflags)"
+clusternet::golang::build_binary() {
+  clusternet::golang::verify_golang
+  # Create a sub-shell so that we don't pollute the outer environment
+  (
+    echo "Building with $(go version)"
 
-       local platform=$1
-       sample-controller::setup_platform "${platform}"
+    local goldflags
+    goldflags="$(clusternet::version::ldflags)"
 
-       local target=$2
-       echo "Building cmd/${target} binary for ${platform} ..."
+    local platform=$1
+    clusternet::golang::setup_platform "${platform}"
 
-       GOOS=${GOOS} GOARCH=${GOARCH} \
-        CGO_ENABLED=${CGO_ENABLED-} \
-        GOPATH="$(abspath ${APP_ROOT}/../../../../)" \
-        go build -ldflags "$goldflags" -o ./_output/${platform}/bin/${target} ./cmd/${target}/
-   ) 
+    local target=$2
+    echo "Building cmd/${target} binary for ${platform} ..."
+
+    GOOS=${GOOS} GOARCH=${GOARCH} \
+      CGO_ENABLED=${CGO_ENABLED-} \
+      GOPATH="$(abspath ${CLUSTERNET_ROOT}/../../../../)" \
+      go build -ldflags "$goldflags" -o ./_output/${platform}/bin/${target} ./cmd/${target}/
+  )
 }
 
-sample-controller::verify_golang() {
-    if [[ -z "$(command -v go)" ]]; then
+# Ensure the go tool exists and is a viable version.
+clusternet::golang::verify_golang() {
+  if [[ -z "$(command -v go)" ]]; then
     echo """
 Can't find 'go' in PATH, please fix and retry.
 See http://golang.org/doc/install for installation instructions.
@@ -121,7 +127,8 @@ See http://golang.org/doc/install for installation instructions.
   fi
 }
 
-sample-controller::host_platform() {
+# Asks golang what it thinks the host platform is.
+clusternet::docker::host_platform() {
   if [[ "$(go env GOHOSTOS)" == "darwin" ]]; then
     echo "linux/$(go env GOHOSTARCH)"
   else
@@ -129,24 +136,25 @@ sample-controller::host_platform() {
   fi
 }
 
-sample-controller::docker-image() {
-    (
-        local platform=$1
-        local target=$2
-        local LDFLAGS="$(sample-controller::ldflags)"
+clusternet::docker::image() {
+  # Create a sub-shell so that we don't pollute the outer environment
+  (
+    local platform=$1
+    local target=$2
 
-        sample-controller::setup_platform "${platform}"
+    local LDFLAGS="$(clusternet::version::ldflags)"
 
-        tag=$(git describe --tags --always)
-        echo "Building docker image ${REGISTRY}/sample-controller/${target}-${GOARCH}:${tag} ..."
+    clusternet::golang::setup_platform "${platform}"
+    tag=$(git describe --tags --always)
+    echo "Building docker image ${REGISTRY}/clusternet/${target}-${GOARCH}:${tag} ..."
 
-        docker buildx build \
-        --load \
-        --platform="$1" \
-        -t "${REGISTRY}/sample-controller/$2-${GOARCH}:${tag}" \
-        --build-arg BASEIMAGE="${BASEIMAGE}" \
-        --build-arg GOVERSION="${GOVERSION}" \
-        --build-arg LDFLAGS="${LDFLAGS}" \
-        --build-arg PKGNAME="${target}" .
-    )
+    docker buildx build \
+      --load \
+      --platform="$1" \
+      -t "${REGISTRY}/clusternet/$2-${GOARCH}:${tag}" \
+      --build-arg BASEIMAGE="${BASEIMAGE}" \
+      --build-arg GOVERSION="${GOVERSION}" \
+      --build-arg LDFLAGS="${LDFLAGS}" \
+      --build-arg PKGNAME="${target}" .
+  )
 }
