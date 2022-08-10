@@ -1,9 +1,8 @@
 # Sample controller
 
-This is a controller for user-defined processing logic.
+This repo contains sample external controllers for [Clusternet](https://github.com/clusternet/clusternet).
 
-This sample is a feedinventory controller, if you want use Dividing scheduler strategy, and the workload is not kubernetes nativ type , you can use this controller after development.
+- [External FeedInventory Controller](./cmd/external-feedinventory)
+- [External Predictor](./cmd/external-predictor)
 
-## Install Controller
-1. set hub command `FeedInventory=false`
-2. kubectl apply -f script/sample-controller.yaml
+You can clone this repo and make up your own logics.
